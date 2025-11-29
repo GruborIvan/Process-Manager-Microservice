@@ -1,0 +1,69 @@
+name: $(Build.DefinitionName).$(Build.SourceBranchName).$(BuildID)
+
+resources:
+  repositories:
+  #Add Devops repository where templates are located
+  - repository: devops
+    type: git
+    name: unity/unity
+    ref: 'develop' #always use develop branch where stable code is stored
+
+trigger:
+  batch: true
+  branches:
+    include:
+    - main
+    - release/*
+  paths:
+    include:
+    - src/ProcessManager.Infrastructure/Migrations
+
+pool:
+  name: $(pool)
+  vmImage: 'windows-latest'
+variables:
+    #include variable group
+  - group: my-devtst-shared-vg
+stages:
+- stage: Build_DB
+  displayName: 'Build database migration'
+  jobs:
+  - job: Build_Service_Job
+    displayName: 'Build database migration job'
+    steps:
+    - checkout: devops
+    - checkout: self
+    - task: petersendev.dotnet-global-tool-installer.DotnetGlobalToolInstaller.DotnetGlobalToolInstaller@0
+      displayName: 'Install EF Core'
+      inputs:
+        name: 'dotnet-ef'
+    - task: DotNetCoreCLI@2
+      displayName: Restore
+      inputs:
+        command: restore
+        projects: '$(Build.SourcesDirectory)/$(Build.Repository.Name)/src/ProcessManager.API/ProcessManager.API.csproj'
+        feedsToUse: 'config'
+        nugetConfigPath: '$(Build.SourcesDirectory)/$(Build.Repository.Name)/NuGet.config'
+
+    # Replace displayName, inlineScript and workingDirectory with appropriate values
+    - task: AzureCLI@2
+      displayName: 'Create ProcessManager migration script'
+      inputs:
+        azureSubscription: '$(AzureSubscriptionServicePrincipal)'
+        scriptType: 'ps'
+        scriptLocation: 'inlineScript'
+        inlineScript: 'dotnet ef migrations script --idempotent -p ProcessManager.Infrastructure.csproj -s "..\ProcessManager.API/ProcessManager.API.csproj" -c ProcesManagerDbContext -o $(Build.ArtifactStagingDirectory)/database/ProcessManager.sql --verbose'
+        addSpnToEnvironment: true
+        workingDirectory: '$(Build.SourcesDirectory)/$(Build.Repository.Name)/src/ProcessManager.Infrastructure/'
+    
+
+    # Generate version based on source
+    - template: Pipelines/Templates/Tasks/version_releaseflow.yml@devops
+      parameters:
+        SourcePath: '$(Build.SourcesDirectory)/$(Build.Repository.Name)'
+    # Package build artifacts
+    - template: Pipelines/Templates/Tasks/package_releaseflow.yml@devops
+      parameters:
+        basePath: '$(Build.ArtifactStagingDirectory)/database/'
+        packageID: 'ProcessManager'
+        ArtifactsFeed: '$(Reloaded_Publishing_Feed)'

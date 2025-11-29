@@ -1,0 +1,49 @@
+name: $(Build.DefinitionName).$(Build.SourceBranchName).$(BuildID)
+
+trigger: none
+#####################################################
+###                 Resources
+#####################################################
+
+resources:
+  repositories:
+  #Add Devops repository where templates are located
+  - repository: devops
+    type: git
+    name: unity/unity
+    ref: 'develop' #always use develop branch where stable code is stored
+
+  pipelines:
+  - pipeline: 'Build-Pipeline'  # identifier for the resource used in pipeline resource variables
+    project: 'Core' # project for the source; optional for current project
+    source: 'ProcessManager-CI'  # name of the pipeline that produces an artifact and triggers this release
+    trigger:    # triggers are not enabled by default unless you add trigger section to the resource
+      branches:  # branch conditions to filter the events, optional; Defaults to all branches.
+        include: 
+          - "release/*"
+
+pool:
+  name: '$(pool)'
+
+variables:
+  - group: my-devtst-shared-vg
+
+stages:
+  - template: Pipelines/Templates/Stages/release.yml@devops
+    parameters: 
+      stages: 
+        - name: 'integration'        # Name of stage to create
+          view: 'integration'        # Name of view where packages will get promoted once approved
+          environment: 'integration' # Name of the environment where approval conditions have been setup
+        - name: 'prerelease'
+          view: 'prerelease'
+          environment: 'prerelease'
+        - name: 'release'
+          view: 'release'
+          environment: 'release'
+      packages:
+        - id: 'ProcessManager' # List of packages
+      feed: # Target feed
+        organization: 'fivedegreesbv'
+        project: 'Reloaded'
+        name: 'Reloaded-Packages'

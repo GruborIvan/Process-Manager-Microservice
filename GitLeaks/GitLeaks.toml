@@ -1,0 +1,102 @@
+title = "gitleaks config"
+
+# Gitleaks rules are defined by regular expressions and entropy ranges.
+# Some secrets have unique signatures which make detecting those secrets easy.
+# Examples of those secrets would be GitLab Personal Access Tokens, AWS keys, and GitHub Access Tokens.
+# All these examples have defined prefixes like `glpat`, `AKIA`, `ghp_`, etc.
+#
+# Other secrets might just be a hash which means we need to write more complex rules to verify
+# that what we are matching is a secret.
+#
+# Here is an example of a semi-generic secret
+#
+#   discord_client_secret = "8dyfuiRyq=vVc3RRr_edRk-fK__JItpZ"
+#
+# We can write a regular expression to capture the variable name (identifier),
+# the assignment symbol (like '=' or ':='), and finally the actual secret.
+# The structure of a rule to match this example secret is below:
+#
+#                                                           Beginning string
+#                                                               quotation
+#                                                                   │            End string quotation
+#                                                                   │                      │
+#                                                                   ▼                      ▼
+#    (?i)(discord[a-z0-9_ .\-,]{0,25})(=|>|:=|\|\|:|<=|=>|:).{0,5}['\"]([a-z0-9=_\-]{32})['\"]
+#
+#                   ▲                              ▲                                ▲
+#                   │                              │                                │
+#                   │                              │                                │
+#              identifier                  assignment symbol
+#                                                                                Secret
+#
+
+[[rules]]
+id = "ClientID"
+regex = '(?i).*clientid"?\s?[:=]\s?"?[a-z0-9\-]+'
+
+[[rules]]
+id = "ClientSecret"
+regex = '(?i).*clientsecret"?\s?[:=]+\s?"?[a-z0-9`=;,~!@#%&_:"<>—\.\^\$\*\+\-\?\(\)\[\]\{\}\\\|\/]+'
+
+[[rules]]
+id = "Email addresses"
+regex = '@(levi9\.com|levi9\.nl|my\.fivedegrees\.cloud|fivedegrees\.com|fivedegrees\.nl|fivedegrees\.is)'
+
+[[rules]]
+id = "All Passwords"
+regex = '(?i).*password"?\s?[:=]+\s?"?[a-z0-9`=;,~!@#%&_:"<>—\.\^\$\*\+\-\?\(\)\[\]\{\}\\\|\/]+'
+
+[[rules]]
+id = "Test User Name"
+regex = '(?i).*testuser.*name"?\s?[:=]+\s?"?[a-z0-9\s]+'
+
+[[rules]]
+id = "Test User Email"
+regex = '(?i).*testuser.*email"?\s?[:=]+\s?"?[a-z0-9_\-\.@]+'
+
+[[rules]]
+id = "Test User ExternalID"
+regex = '(?i).*testuser.*externalid"?\s?[:=]\s?"?[a-z0-9\-]+'
+
+[[rules]]
+id = "User Name"
+regex = '(?i).*username"?\s?[:=]+\s?"?[a-z0-9\s]+'
+
+[[rules]]
+id = "ExternalID"
+regex = '(?i).*externalid"?\s?[:=]\s?"?[a-z0-9\-]+'
+
+[[rules]]
+id = "AccessKey"
+regex = '(?i).*accesskey"?\s?[:=]+\s?"?[a-z0-9`=;,~!@#%&_:<>—\.\^\$\*\+\-\?\(\)\[\]\{\}\\\|\/]+'
+
+[[rules]]
+id = "Subscription Key"
+regex = '(?i).*subscriptionkey"?\s?[:=]+\s?"?[a-z0-9\-]+'
+
+[[rules]]
+id = "Account Key"
+regex = '(?i).*accountkey"?\s?[:=]+\s?"?[a-z0-9`=;,~!@#%&_:<>—\.\^\$\*\+\-\?\(\)\[\]\{\}\\\|\/]+'
+
+[[rules]]
+id = "Topic Key"
+regex = '(?i).*topickey"?\s?[:=]+\s?"?[a-z0-9`=;,~!@#%&_:<>—\.\^\$\*\+\-\?\(\)\[\]\{\}\\\|\/]+'
+
+[[rules]]
+id = "Instrumentation Key"
+regex = '(?i).*instrumentationkey"?\s?[:=]+\s?"?[a-z0-9\-]+'
+
+[[rules]]
+id = "App Secret"
+regex = '(?i).*appsecret"?\s?[:=]+\s?"?[a-z0-9`=;,~!@#%&_:<>—\.\^\$\*\+\-\?\(\)\[\]\{\}\\\|\/]+'
+
+[allowlist]
+description = "global allow list"
+regexes = [
+    'AUTH.*PASSWORD',
+	'AUTH.*EMAIL',
+	'AUTH.*USERNAME'
+    ]
+paths = [
+	'(.*?)(cs|css|js|jsx|ts|tsx)$'
+]

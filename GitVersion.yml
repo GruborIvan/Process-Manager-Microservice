@@ -1,0 +1,31 @@
+assembly-file-versioning-format: '{Major}.{Minor}.{Patch}.{CommitsSinceVersionSource}'
+assembly-informational-format: '{Major}.{Minor}.{Patch}.{CommitsSinceVersionSource}'
+#assembly-informational-format: '{Major}.{Minor}.{Patch}.{CommitsSinceVersionSource}-{PreReleaseLabel}'
+
+mode: ContinuousDeployment
+#continuous-delivery-fallback-tag: 'dev'
+
+branches:
+  release:
+    mode: ContinuousDelivery
+    tag: rc    
+    regex: release(s)?[/-]
+  develop:
+    mode: ContinuousDeployment
+    tag: ci
+    increment: Patch
+    regex: ^dev(elop)?(ment)?$  
+  main:
+    mode: ContinuousDeployment
+    tag: 
+    increment: Patch
+    regex: ^main
+  feature: 
+    mode: ContinuousDeployment
+    tag: feature
+    regex: feature(s)?[/-]
+    increment: Patch
+    source-branches: ['main']
+
+ignore:
+  sha: []

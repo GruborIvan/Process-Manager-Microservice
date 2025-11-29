@@ -1,0 +1,150 @@
+
+name: $(Build.DefinitionName).$(Build.SourceBranchName).$(BuildID)
+
+parameters:
+- name: platformName
+  displayName: Platform Name
+  type: string
+  default: devpfm
+  values:
+  - devpfm
+  - admpfm
+ 
+- name: tenantShortName
+  displayName: Tenant short name
+  type: string
+  default: k3y
+  values:
+  - inf
+  - len
+  - arch
+  - fat
+  - sntl
+  - s1s
+  - tc1s
+  - k3y
+  - gud
+  - bad
+- name: environmentShortName
+  displayName: Environment Short Name
+  type: string
+  default: sbx
+  values:
+  - sbx
+  - stg
+  - prd
+ 
+- name: sharedVariableGroupName
+  displayName: Shared Variable Group Name
+  type: string
+  default: MY-DEVTST-SHARED
+  values:
+  - MY-DEVTST-SHARED
+
+- name: subscriptionVariableGroupName
+  displayName: Subscription Name
+  type: string
+  default: MY-DEVTST05
+  values:
+  - MY-DEVTST03
+  - MY-DEVTST04
+  - MY-DEVTST05
+
+- name: reloadedFeedView
+  displayName: Feed view
+  type: string
+  default: Local
+  values:
+  - Local
+  - Integration
+  - Prerelease
+  - Release
+ 
+- name: Deployment_level
+  displayName: Deployment level
+  type: string
+  default: env
+  values:
+  - env
+  - tenant
+  - platform
+ 
+- name: VersionTagFilter
+  displayName: VersionTagFilter
+  type: string
+  default: '*'
+
+resources:
+#Add Devops repository where templates are located
+  repositories:
+  - repository: devops
+    type: git
+    name: unity/unity
+    ref: 'develop' #always use develop branch where stable code is stored 
+ 
+trigger: none
+pool:
+  name: $(pool)
+  vmimage: 'windows-latest'
+  
+variables:
+  - name: platformName
+    value: ${{ parameters.platformName }}
+  - name: tenantShortName
+    value: ${{ parameters.tenantShortName }}
+  - name: environmentShortName
+    value: ${{ parameters.environmentShortName }}
+  - name: reloadedFeedView
+    value: ${{ parameters.reloadedFeedView }}
+  - name: VersionTagFilter
+    value: '${{parameters.VersionTagFilter}}'
+  - name: resourceLevel
+    value: '${{parameters.Deployment_level}}' # platform, tenant or env
+  - name: deployDatabases
+    value: true
+  - group: ${{ parameters.sharedVariableGroupName }}
+  - group: ${{ parameters.subscriptionVariableGroupName }}
+
+stages:
+  - stage: Deploy_DB
+    displayName: 'Deploy DB ProcessManager'
+    jobs:
+    - template: Pipelines/Templates/Jobs/deployDatabasesJob.yml@devops
+      parameters:
+        repoAlias: 'devops'
+        deployFeature: true
+        runDeploymentJob: true
+        versionTagFilter: $(VersionTagFilter)
+        organization: $(reloadedFeedOrganization)
+        project: $(reloadedFeedProjectName)
+        packageFeedName: $(reloadedFeedName)
+        packageFeedView: $(reloadedFeedView)
+        packageFeedAccessToken: ${{ coalesce( variables.reloadedFeedAccessToken, '$(System.AccessToken)' ) }}
+        databases:
+        - ${{if eq(variables.resourceLevel, 'platform')}}:
+          - dbName: ProcessManager
+            serverName: "$(platformName)-shared-mssqlsrv"
+            resourceGroupName: "$(platformName)-platform-rg"
+            dbDeploymentType: "SQL"
+            useManagedIdentity: true
+            managedIdentities:    
+            - name: "$(platformName)-processmanagersvc"
+              roles: ["db_datareader", "db_datawriter", "db_ddladmin"]
+        - ${{if eq(variables.resourceLevel, 'tenant')}}:
+          - dbName: ProcessManager
+            serverName: "$(platformName)-$(tenantShortName)-shared-mssqlsrv"
+            resourceGroupName: "$(platformName)-$(tenantShortName)-tnt-rg"
+            dbDeploymentType: "SQL"
+            useManagedIdentity: true
+            managedIdentities:
+            - name: "$(platformName)-$(tenantShortName)-processmanagersvc"
+              roles: ["db_datareader", "db_datawriter", "db_ddladmin"]
+        - ${{if eq(variables.resourceLevel, 'env')}}:
+          - dbName: ProcessManager
+            serverName: "$(platformName)-$(tenantShortName)-$(environmentShortName)-shared-mssqlsrv"
+            resourceGroupName: "$(platformName)-$(tenantShortName)-$(environmentShortName)-rg"
+            dbDeploymentType: "SQL"
+            useManagedIdentity: true
+            managedIdentities:
+            - name: "$(platformName)-$(tenantShortName)-$(environmentShortName)-processmanagersvc"
+              roles: ["db_datareader", "db_datawriter", "db_ddladmin"]

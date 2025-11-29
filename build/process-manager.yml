@@ -1,0 +1,80 @@
+name: $(Build.DefinitionName).$(Build.SourceBranchName).$(BuildID)
+
+trigger: none
+pool:
+  name: $(pool)
+  vmImage: 'windows-latest'
+variables:
+  - group: my-devtst-shared-vg
+  - name:  agentImage
+    value: 'windows-latest'
+# removed logic for evaluating ReloadedBranch value 
+  - name: AzureSubscriptionServicePrincipal
+    value: 'MY-DEVTST-SP'
+  - name: ArtifactsFeed
+    value: '$(Reloaded_Publishing_Feed)'
+  
+stages:
+- stage: Build_Service
+  displayName: 'Build stage'
+  variables:
+  - name:  BuildConfiguration
+    value: Release
+  - name: BuildPlatform
+    value: 'any cpu'  
+  jobs:
+  - job: Build_Service_Job
+    displayName: 'Build job'
+    steps:
+    - checkout: self
+    - task: UseDotNet@2
+      displayName: 'Use .Net 6.0.x'
+      inputs:
+        version: 6.0.x
+    - task: DotNetCoreCLI@2
+      displayName: Restore
+      inputs:
+        command: restore
+        projects: '$(Build.SourcesDirectory)/**/*.sln'
+        feedsToUse: 'select'
+        vstsFeed: '$(Feed_ReloadedId)'
+    - task: SonarQubePrepare@4
+      displayName: Prepare Sonar Qube Analysis
+      inputs:
+        SonarQube: 'FD Sonar-Core'
+        scannerMode: 'MSBuild'
+        projectKey: 'ProcessManager.Service'
+        projectName: 'ProcessManager.Service'
+        extraProperties: |
+          sonar.cs.opencover.reportsPaths="$(Build.SourcesDirectory)\TestResults\coverage.opencover.xml"
+          sonar.coverage.exclusions=**/FiveDegrees.Messages/**,**/Program.cs,**/Startup.cs
+    - task: DotNetCoreCLI@2
+      displayName: Build
+      inputs:
+        projects: '$(Build.SourcesDirectory)/**/*.sln'
+        arguments: '--configuration $(BuildConfiguration)'
+    - task: DotNetCoreCLI@2
+      enabled: true
+      displayName: Test
+      inputs:
+        command: test
+        projects: '$(Build.SourcesDirectory)/**/*.sln'
+        arguments: '--configuration $(BuildConfiguration) --logger "trx;LogFileName=$(Build.SourcesDirectory)\TestResults\results.trx" /p:CollectCoverage=true /p:CoverletOutputFormat=opencover /p:CoverletOutput=$(Build.SourcesDirectory)\TestResults\ /p:Threshold=0 /p:ThresholdStat=average /p:Exclude=[FiveDegrees.Messages]*%2c[*API]*Program%2c[*API]*Startup%2c[*BackgroundWorker]*Program%2c[*BackgroundWorker]*Startup%2c[*Infrastructure]*Migrations*'
+    - task: PublishCodeCoverageResults@1
+      displayName: 'Publish code coverage results'
+      inputs:
+        codeCoverageTool: Cobertura
+        summaryFileLocation: '$(System.DefaultWorkingDirectory)/**/coverage.opencover.xml'
+        reportDirectory: '$(System.DefaultWorkingDirectory)/**/coverage'
+      condition: succeededOrFailed()
+    - task: SonarQubeAnalyze@4
+      displayName: Run Sonar Qube Analysis
+    - task: Gitleaks@2
+      inputs:
+        scanlocation: '$(Build.SourcesDirectory)/src'
+        configtype: 'custom'
+        configfile: $(Build.SourcesDirectory)/GitLeaks/GitLeaks.toml
+        uploadresults: true
+        reportformat: 'sarif'
+        scanmode: all
+        taskfail: false
